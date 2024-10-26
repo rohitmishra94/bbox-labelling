@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Annotation Tool</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4366f1;
+            --primary-hover: #3b5be6;
+            --danger-color: #dc2626;
+            --border-color: #e2e8f0;
+            --background-color: #f8fafc;
+            --text-color: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            height: 100vh;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            height: calc(100vh - 2rem);
+            overflow-y: auto;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            height: calc(100vh - 2rem);
+        }
+
+        .toolbar {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .canvas-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-wrapper {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #imageCanvas {
+            position: absolute;
+            cursor: crosshair;
+            transform-origin: 0 0;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #f1f5f9;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .button-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .button-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .button-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .button-danger:hover {
+            opacity: 0.9;
+        }
+
+        .image-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-button {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .nav-button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .annotation-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 0.5rem;
+        }
+
+        .annotation-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .annotation-item:last-child {
+            border-bottom: none;
+        }
+
+        .thickness-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0 1rem;
+        }
+
+        .thickness-control input {
+            width: 100px;
+        }
+
+        .zoom-level {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .coordinates {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .keyboard-shortcuts {
+            font-size: 0.8rem;
+            color: #64748b;
+            padding: 0.5rem;
+            background: #f8fafc;
+            border-radius: 4px;
+            margin-top: auto;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.25rem 0;
+        }
+
+        .key {
+            background: #e2e8f0;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="stats">
+                <span>Total: <span id="totalImages">0</span></span>
+                <span>Labeled: <span id="labeledImages">0</span></span>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <select id="imageSelect" class="image-select">
+                <option value="">Select an image...</option>
+            </select>
+
+            <div class="nav-controls">
+                <button id="prevButton" class="nav-button" disabled>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <button id="nextButton" class="nav-button" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="annotation-list" id="annotationList">
+                <!-- Annotations will be listed here -->
+            </div>
+
+            <button id="saveAnnotations" class="button button-primary">
+                <i class="fas fa-save"></i> Save Annotations
+            </button>
+
+            <div class="keyboard-shortcuts">
+                <div class="shortcut-item">
+                    <span>Previous Image</span>
+                    <span class="key">←</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Next Image</span>
+                    <span class="key">→</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Save</span>
+                    <span class="key">Ctrl + S</span>
+                </div>
+                <div class="shortcut-item">
+                    <span>Zoom In/Out</span>
+                    <span class="key">Scroll</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="toolbar">
+                <div class="thickness-control">
+                    <span>Box Thickness:</span>
+                    <input type="range" id="thicknessControl" min="1" max="5" value="2">
+                    <span id="thicknessValue">2px</span>
+                </div>
+
+                <button id="toggleDrawing" class="button button-primary">
+                    <i class="fas fa-pencil-alt"></i> Drawing Mode
+                </button>
+            </div>
+
+            <div class="canvas-container">
+                <div class="canvas-wrapper">
+                    <canvas id="imageCanvas"></canvas>
+                </div>
+                <div class="zoom-controls">
+                    <button id="zoomIn" class="button button-primary">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <span class="zoom-level" id="zoomLevel">100%</span>
+                    <button id="zoomOut" class="button button-primary">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button id="resetZoom" class="button button-primary">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="coordinates" id="coordinates">X: 0, Y: 0</div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageSelect = document.getElementById('imageSelect');
+        const saveButton = document.getElementById('saveAnnotations');
+        const annotationList = document.getElementById('annotationList');
+        const toggleDrawingBtn = document.getElementById('toggleDrawing');
+        const thicknessControl = document.getElementById('thicknessControl');
+        const thicknessValue = document.getElementById('thicknessValue');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        const totalImagesSpan = document.getElementById('totalImages');
+        const labeledImagesSpan = document.getElementById('labeledImages');
+        const progressFill = document.getElementById('progressFill');
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const resetZoomBtn = document.getElementById('resetZoom');
+        const zoomLevelDisplay = document.getElementById('zoomLevel');
+        const coordinatesDisplay = document.getElementById('coordinates');
+    
+        // State variables
+        let currentImage = null;
+        let annotations = [];
+        let isDrawing = false;
+        let isDrawingEnabled = true;
+        let isDragging = false;
+        let startX, startY;
+        let lastX, lastY;
+        let boxThickness = 2;
+        let imageList = [];
+        let currentImageIndex = -1;
+        let labeledCount = 0;
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let maxZoom = 5;
+        let minZoom = 0.1;
+    
+        // Initialize thickness control
+        thicknessControl.addEventListener('input', function(e) {
+            boxThickness = parseInt(e.target.value);
+            thicknessValue.textContent = `${boxThickness}px`;
+            drawAnnotations();
+        });
+    
+        // Toggle drawing mode
+        toggleDrawingBtn.addEventListener('click', function() {
+            isDrawingEnabled = !isDrawingEnabled;
+            this.classList.toggle('button-primary');
+            this.classList.toggle('button-danger');
+            canvas.style.cursor = isDrawingEnabled ? 'crosshair' : 'grab';
+        });
+    
+        // Load image list
+        async function loadImageList() {
+            try {
+                const response = await fetch('/get_image_list');
+                if (!response.ok) throw new Error('Failed to fetch image list');
+                
+                imageList = await response.json();
+                totalImagesSpan.textContent = imageList.length;
+                
+                // Populate select
+                imageSelect.innerHTML = '<option value="">Select an image...</option>';
+                imageList.forEach((imageName, index) => {
+                    const option = document.createElement('option');
+                    option.value = imageName;
+                    option.textContent = `Image ${index + 1}: ${imageName}`;
+                    imageSelect.appendChild(option);
+                });
+    
+                updateNavigationControls();
+            } catch (error) {
+                console.error('Error loading image list:', error);
+                alert('Error loading image list');
+            }
+        }
+    
+        // Load and display image
+        async function loadImage(imageName) {
+            return new Promise((resolve, reject) => {
+                currentImage = new Image();
+                currentImage.onload = function() {
+                    // Calculate scale to fit image in canvas container
+                    const containerWidth = canvas.parentElement.clientWidth;
+                    const containerHeight = canvas.parentElement.clientHeight;
+                    const scaleX = containerWidth / this.width;
+                    const scaleY = containerHeight / this.height;
+                    scale = Math.min(1, scaleX, scaleY);
+    
+                    // Set canvas size to image dimensions
+                    canvas.width = this.width;
+                    canvas.height = this.height;
+                    
+                    // Reset transformation
+                    offsetX = 0;
+                    offsetY = 0;
+                    
+                    // Apply transform and draw
+                    updateCanvasTransform();
+                    resolve();
+                };
+                currentImage.onerror = () => reject(new Error('Failed to load image'));
+                currentImage.src = `/images/${encodeURIComponent(imageName)}`;
+            });
+        }
+    
+        // Update canvas transform
+        function updateCanvasTransform() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Apply new transform
+            ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+            
+            // Draw image
+            if (currentImage) {
+                ctx.drawImage(currentImage, 0, 0);
+            }
+            
+            // Update zoom level display
+            zoomLevelDisplay.textContent = `${Math.round(scale * 100)}%`;
+        }
+    
+        // Load annotations
+        async function loadAnnotations(imageName) {
+            try {
+                const response = await fetch(`/get_annotations?image_name=${encodeURIComponent(imageName)}`);
+                if (!response.ok) throw new Error('Failed to fetch annotations');
+                
+                const data = await response.json();
+                annotations = data.annotations || [];
+                updateAnnotationList();
+                drawAnnotations();
+            } catch (error) {
+                console.error('Error loading annotations:', error);
+                annotations = [];
+            }
+        }
+    
+        // Draw annotations
+        function drawAnnotations() {
+            if (!currentImage) return;
+            
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Apply current transform
+            ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+            
+            // Draw image
+            ctx.drawImage(currentImage, 0, 0);
+            
+            // Draw annotations
+            annotations.forEach((box, index) => {
+                const [x1, y1, x2, y2] = box;
+                
+                // Draw bounding box
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = boxThickness / scale;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                
+                // Draw label background
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.fillRect(x1, y1 - 20/scale, 30/scale, 20/scale);
+                
+                // Draw label text
+                ctx.fillStyle = 'white';
+                ctx.font = `bold ${12/scale}px Arial`;
+                ctx.fillText(`#${index + 1}`, x1 + 5/scale, y1 - 5/scale);
+            });
+        }
+    
+        // Update annotation list
+        function updateAnnotationList() {
+            annotationList.innerHTML = '<h3>Annotations:</h3>';
+            annotations.forEach((box, index) => {
+                const item = document.createElement('div');
+                item.className = 'annotation-item';
+                const [x1, y1, x2, y2] = box;
+                
+                item.innerHTML = `
+                    <div>
+                        <strong>#${index + 1}</strong>
+                        <small>[${Math.round(x1)}, ${Math.round(y1)}, ${Math.round(x2)}, ${Math.round(y2)}]</small>
+                    </div>
+                    <button class="button button-danger" onclick="removeAnnotation(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                annotationList.appendChild(item);
+            });
+        }
+    
+        // Remove annotation
+        function removeAnnotation(index) {
+            annotations.splice(index, 1);
+            updateAnnotationList();
+            drawAnnotations();
+        }
+    
+        // Update navigation controls
+        function updateNavigationControls() {
+            prevButton.disabled = currentImageIndex <= 0;
+            nextButton.disabled = currentImageIndex >= imageList.length - 1;
+            
+            // Update progress
+            const progress = (labeledCount / imageList.length) * 100;
+            progressFill.style.width = `${progress}%`;
+            labeledImagesSpan.textContent = labeledCount;
+        }
+    
+        // Navigation handlers
+        prevButton.addEventListener('click', () => {
+            if (currentImageIndex > 0) {
+                currentImageIndex--;
+                imageSelect.selectedIndex = currentImageIndex + 1;
+                loadImage(imageList[currentImageIndex])
+                    .then(() => loadAnnotations(imageList[currentImageIndex]))
+                    .then(() => updateNavigationControls());
+            }
+        });
+    
+        nextButton.addEventListener('click', () => {
+            if (currentImageIndex < imageList.length - 1) {
+                currentImageIndex++;
+                imageSelect.selectedIndex = currentImageIndex + 1;
+                loadImage(imageList[currentImageIndex])
+                    .then(() => loadAnnotations(imageList[currentImageIndex]))
+                    .then(() => updateNavigationControls());
+            }
+        });
+    
+        // Mouse events for drawing and panning
+        canvas.addEventListener('mousedown', function(e) {
+            if (isDrawingEnabled) {
+                const rect = canvas.getBoundingClientRect();
+                startX = (e.clientX - rect.left - offsetX) / scale;
+                startY = (e.clientY - rect.top - offsetY) / scale;
+                isDrawing = true;
+            } else {
+                isDragging = true;
+                lastX = e.clientX - offsetX;
+                lastY = e.clientY - offsetY;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+    
+        canvas.addEventListener('mousemove', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - offsetX) / scale;
+            const y = (e.clientY - rect.top - offsetY) / scale;
+            
+            // Update coordinates display
+            coordinatesDisplay.textContent = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
+    
+            if (isDragging) {
+                offsetX = e.clientX - lastX;
+                offsetY = e.clientY - lastY;
+                drawAnnotations();
+            } else if (isDrawing) {
+                drawAnnotations();
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = boxThickness / scale;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(startX, startY, x - startX, y - startY);
+                ctx.setLineDash([]);
+            }
+        });
+    
+        canvas.addEventListener('mouseup', function(e) {
+            if (isDragging) {
+                isDragging = false;
+                canvas.style.cursor = isDrawingEnabled ? 'crosshair' : 'grab';
+            } else if (isDrawing) {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left - offsetX) / scale;
+                const y = (e.clientY - rect.top - offsetY) / scale;
+                
+                const newBox = [
+                    Math.min(startX, x),
+                    Math.min(startY, y),
+                    Math.max(startX, x),
+                    Math.max(startY, y)
+                ];
+                
+                annotations.push(newBox);
+                isDrawing = false;
+                updateAnnotationList();
+                drawAnnotations();
+            }
+        });
+    
+        // Zoom controls
+        zoomInBtn.addEventListener('click', () => {
+            scale = Math.min(maxZoom, scale * 1.2);
+            drawAnnotations();
+        });
+    
+        zoomOutBtn.addEventListener('click', () => {
+            scale = Math.max(minZoom, scale / 1.2);
+            drawAnnotations();
+        });
+    
+        resetZoomBtn.addEventListener('click', () => {
+            scale = 1;
+            offsetX = 0;
+            offsetY = 0;
+            drawAnnotations();
+        });
+    
+        // Mouse wheel zoom
+        canvas.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Calculate real coordinates
+            const x = (mouseX - offsetX) / scale;
+            const y = (mouseY - offsetY) / scale;
+            
+            // Adjust scale
+            if (e.deltaY < 0) {
+                scale = Math.min(maxZoom, scale * 1.1);
+            } else {
+                scale = Math.max(minZoom, scale / 1.1);
+            }
+            
+            // Adjust offset to zoom into mouse position
+            offsetX = mouseX - x * scale;
+            offsetY = mouseY - y * scale;
+            
+            drawAnnotations();
+        });
+    
+        // Handle image selection
+        imageSelect.addEventListener('change', async function() {
+            const imageName = this.value;
+            if (imageName) {
+                currentImageIndex = imageList.indexOf(imageName);
+                try {
+                    await loadImage(imageName);
+                    await loadAnnotations(imageName);
+                    updateNavigationControls();
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error loading image or annotations');
+                }
+            }
+        });
+    
+        // Save annotations
+        saveButton.addEventListener('click', async function() {
+            if (!currentImage) {
+                alert('Please select an image first');
+                return;
+            }
+            
+            try {
+                // Format annotations to ensure they're numbers
+                const formattedAnnotations = annotations.map(box => 
+                    box.map(coord => Number(coord))
+                );
+
+                console.log('Saving annotations:', formattedAnnotations);
+
+                const response = await fetch('/save_annotations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_name: imageList[currentImageIndex],
+                        annotations: formattedAnnotations
+                    }),
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('Annotations saved successfully');
+                    if (annotations.length > 0) {
+                        labeledCount++;
+                        updateNavigationControls();
+                    }
+                    alert('Annotations saved successfully');
+                } else {
+                    console.error('Error from server:', result.error);
+                    alert(result.error || 'Error saving annotations');
+                }
+            } catch (error) {
+                console.error('Error saving annotations:', error);
+                alert('Error saving annotations: ' + error.message);
+            }
+        });
+    
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                prevButton.click();
+            } else if (e.key === 'ArrowRight') {
+                nextButton.click();
+            } else if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveButton.click();
+            }
+        });
+    
+        // Prevent context menu on canvas
+        canvas.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+    
+        // Initialize application
+        loadImageList();
+    </script>
+</body>
+</html>
